@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI E-commerce Search</title>
+  <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
+  <style>
+    @import url('[https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap)');
+
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* Simple spinner */
+    .spinner {
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border-left-color: #4f46e5;
+      animation: spin 1s ease infinite;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+
+<body class="bg-gray-50">
+
+  <div class="container mx-auto max-w-2xl p-4 pt-8 md:pt-12">
+    <header class="text-center mb-8">
+      <h1 class="text-3xl font-bold text-gray-900">AI E-commerce Search</h1>
+      <p class="text-lg text-gray-600 mt-2">Ask a natural language question to find real products.</p>
+    </header>
+
+    <!-- Search Bar -->
+    <form id="searchForm" class="mb-6">
+      <div class="flex">
+        <input type="text" id="searchInput"
+          class="flex-grow p-4 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          placeholder="e.g., 'best camera phone under 20000 in India'">
+        <button type="submit"
+          class="px-6 py-4 bg-indigo-600 text-white font-medium rounded-r-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          Search
+        </button>
+      </div>
+    </form>
+
+    <!-- Message Box (for errors, etc.) -->
+    <div id="messageBox"
+      class="hidden p-4 mb-6 bg-red-100 border border-red-400 text-red-700 rounded-lg text-center">
+    </div>
+
+    <!-- AI Recommendation Box -->
+    <div id="aiRecommendationBox" class="hidden mb-6 bg-white p-5 rounded-lg shadow border border-gray-200">
+      <div class="flex items-start gap-3">
+        <div
+          class="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-lg">
+          AI
+        </div>
+        <div class="flex-grow">
+          <div id="aiSpinner" class="flex items-center gap-3">
+            <div class="spinner"></div>
+            <span class="text-gray-600">Searching for real products...</span>
+          </div>
+          <p id="aiRecommendationText" class="text-gray-800 leading-relaxed"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Product Results Grid -->
+    <div id="productGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <!-- Product cards will be inserted here by JavaScript -->
+    </div>
+
+  </div>
+
+  <script type="module">
+    // ---
+    // GLOBAL VARIABLES & DOM ELEMENTS
+    // ---
+    
+    // NO API KEY HERE - This file is public!
+
+    const searchForm = document.getElementById('searchForm');
+    const searchInput = document.getElementById('searchInput');
+    const productGrid = document.getElementById('productGrid');
+    const messageBox = document.getElementById('messageBox');
+    const aiRecommendationBox = document.getElementById('aiRecommendationBox');
+    const aiSpinner = document.getElementById('aiSpinner');
+    const aiRecommendationText = document.getElementById('aiRecommendationText');
+
+    // ---
+    // EVENT LISTENERS
+    // ---
+    searchForm.addEventListener('submit', handleSearchSubmit);
+
+    /**
+     * Main function to handle the search form submission
+     */
+    async function handleSearchSubmit(event) {
+      event.preventDefault();
+      const userQuery = searchInput.value.trim();
+
+      if (!userQuery) {
+        showMessage('Please enter a search query.');
+        return;
+      }
+
+      // 1. Reset the UI
+      productGrid.innerHTML = '';
+      messageBox.classList.add('hidden');
+      aiRecommendationBox.classList.remove('hidden');
+      aiSpinner.classList.remove('hidden');
+      aiRecommendationText.textContent = 'Searching for real products...';
+      aiRecommendationText.classList.add('hidden'); // Hide text field until we have a response
+
+      try {
+        // 2. --- CALL OUR SECURE BACKEND ---
+        // Instead of calling Google, we call our own "search" function
+        const result = await performSecureSearch(userQuery);
+
+        if (result && result.recommendationText) {
+          // 1. Always display the AI recommendation
+          aiSpinner.classList.add('hidden');
+          aiRecommendationText.textContent = result.recommendationText;
+          aiRecommendationText.classList.remove('hidden');
+
+          // 2. Check for products and display them
+          if (result.products && result.products.length > 0) {
+            displayProducts(result.products);
+          } else {
+            // No products found, but the AI recommendation is still visible.
+          }
+        } else {
+          // This 'else' means the API call failed
+          aiRecommendationBox.classList.add('hidden');
+          // showMessage is now called inside performSecureSearch
+        }
+
+      } catch (error) {
+        console.error('Search failed:', error);
+        aiRecommendationBox.classList.add('hidden');
+        showMessage('An unknown error occurred. Please check the console.');
+      }
+    }
+
+    /**
+     * Renders the product cards to the screen
+     */
+    function displayProducts(products) {
+      productGrid.innerHTML = ''; // Clear existing results
+      if (products.length === 0) {
+        return;
+      }
+
+      products.forEach(product => {
+        const card = document.createElement('a'); // Card is now a link
+        card.href = product.uri; // Use 'uri' from metadata
+        card.target = '_blank'; // Open in new tab
+        card.rel = 'noopener noreferrer';
+        card.className = 'bg-white rounded-lg shadow-md overflow-hidden transform transition-all hover:scale-105 block hover:shadow-lg';
+
+        let hostname;
+        let fallbackIconText = "Link";
+        try {
+          hostname = new URL(product.uri).hostname;
+          fallbackIconText = hostname.replace(/^www\./, '').charAt(0).toUpperCase();
+        } catch (e) {
+          hostname = "View"; // Fallback
+        }
+
+        const faviconUrl = `https://s2.googleusercontent.com/s2/favicons?domain=${hostname}&sz=64`;
+        const placeholderIcon = `https://placehold.co/64x64/E0E7FF/4F46E5?text=${fallbackIconText}`;
+        const sourceTitle = product.title || hostname.replace(/^www\./, '');
+
+        card.innerHTML = `
+          <div class="h-40 w-full bg-gray-100 flex items-center justify-center">
+            <img 
+              src="${faviconUrl}" 
+              alt="${sourceTitle} logo" 
+              class="w-16 h-16 rounded-full bg-white p-2 shadow"
+              onerror="this.src='${placeholderIcon}'"
+            >
+          </div>
+          <div class="p-4">
+            <h3 class="font-semibold text-gray-800 line-clamp-2" title="${sourceTitle}">
+              ${sourceTitle}
+            </h3>
+            <p class="text-sm text-gray-500 mb-3">${hostname.replace(/^www\./, '')}</p>
+            <span class="inline-block w-full text-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-md text-sm hover:bg-indigo-700">
+              View Product &rarr;
+            </span>
+          </div>
+        `;
+        productGrid.appendChild(card);
+      });
+    }
+
+    /**
+     * Displays a message (error or info) to the user
+     */
+    function showMessage(message) {
+      messageBox.textContent = message;
+      messageBox.classList.remove('hidden');
+    }
+
+    // ---
+    // PART 2: SECURE API CALL
+    // ---
+
+    /**
+     * Calls our *own* backend function, not Google directly.
+     */
+    async function performSecureSearch(userQuery) {
+      
+      // This is the "endpoint" for our serverless function.
+      // Netlify automatically knows what this means.
+      const functionUrl = `/.netlify/functions/search`;
+
+      try {
+        const response = await fetch(functionUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userQuery: userQuery }) // Send the query to our backend
+        });
+
+        if (!response.ok) {
+           const errorData = await response.json();
+           showMessage(errorData.message || "Failed to connect to search service.");
+           return null;
+        }
+
+        const result = await response.json();
+        return result; // This will be { recommendationText, products }
+
+      } catch (error) {
+        console.error('Error calling backend function:', error);
+        showMessage('Failed to connect to the search service. Please try again.');
+        return null;
+      }
+    }
+  </script>
+
+</body>
+
+</html>
+
+
+File 2: netlify/functions/search.js
+
+Create this file inside the netlify/functions/ folder.
+
+/*
+ * This is your SECURE backend function.
+ * This file lives in a folder named 'netlify/functions/'
+ * This code runs on a server, not in the user's browser.
+ * The API key is 100% hidden here.
+ */
+
+// We must use 'node-fetch' in a Netlify function
+import fetch from 'node-fetch';
+
+// This is the main "handler" function that Netlify will run
+export async function handler(event, context) {
+  
+  // 1. Get the user's query from the frontend
+  let userQuery;
+  try {
+    userQuery = JSON.parse(event.body).userQuery;
+    if (!userQuery) {
+      throw new Error("No userQuery provided");
+    }
+  } catch (error) {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ message: "Invalid search query." }),
+    };
+  }
+
+  // 2. Get the API key SECURELY from environment variables
+  // We will set this in the Netlify website UI
+  const apiKey = process.env.GEMINI_API_KEY;
+  
+  if (!apiKey) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ message: "Server is missing API key configuration." }),
+    };
+  }
+  
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+  // 3. This is the same AI logic from our prototype
+  const systemPrompt = `You are an expert e-commerce search assistant. Your job is to:
+1.  **You MUST use the Google Search tool.** Your answer MUST be based *only* on the search results provided.
+2.  **Do NOT use your internal knowledge.** If the search results are empty or irrelevant, just say "I could not find any specific products for that query."
+3.  Generate a concise, 2-3 sentence conversational recommendation.
+4.  Please try to name 2-3 specific product models in your answer (e.g., 'A great option is the Moto G54, or the Samsung F15'), but *only if you find them* in the search results.
+5.  If you find them, briefly explain *why* they are good (e.g., 'The Moto has OIS, while the Samsung has a big battery').
+6.  Do NOT use any markdown formatting (like '**').
+7.  You must respond ONLY with the text of the recommendation. Do not include any other pre-amble or formatting.`;
+
+  const payload = {
+    contents: [{ parts: [{ text: `User's e-commerce query: "${userQuery}"` }] }],
+    tools: [{ "google_search": {} }],
+    systemInstruction: {
+      parts: [{ text: systemPrompt }]
+    },
+    generationConfig: {
+      maxOutputTokens: 2048,
+      temperature: 0.2,
+    }
+  };
+
+  // 4. Call the Google API (from the server)
+  try {
+    const apiResponse = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!apiResponse.ok) {
+       const errorBody = await apiResponse.json();
+       console.error("Google API Error:", errorBody);
+       return {
+         statusCode: apiResponse.status,
+         body: JSON.stringify({ message: `API Error: ${errorBody.error.message}` })
+       }
+    }
+
+    const result = await apiResponse.json();
+    const candidate = result.candidates?.[0];
+
+    if (candidate && candidate.finishReason === 'STOP' && candidate.content?.parts?.[0]?.text) {
+      const recommendationText = candidate.content.parts[0].text;
+      
+      let products = [];
+      const metadata = candidate.groundingMetadata;
+      if (metadata && metadata.groundingAttributions) {
+        products = metadata.groundingAttributions
+          .map(attr => ({
+            uri: attr.web?.uri,
+            title: attr.web?.title,
+          }))
+          .filter(p => p.uri && p.title)
+          .slice(0, 4);
+      }
+      
+      // 5. Send the final, safe data back to the frontend
+      return {
+        statusCode: 200,
+        body: JSON.stringify({ recommendationText, products })
+      };
+      
+    } else {
+       // Handle safety blocks or other issues
+       if (candidate && candidate.finishReason === 'SAFETY') {
+         return { 
+           statusCode: 400, 
+           body: JSON.stringify({ message: "The request was blocked for safety reasons. Please adjust your query."}) 
+         };
+       }
+       throw new Error("Invalid response from AI service.");
+    }
+
+  } catch (error) {
+    console.error('Error in server function:', error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ message: "An error occurred on the server." })
+    };
+  }
+}
