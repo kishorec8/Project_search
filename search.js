@@ -1,15 +1,8 @@
-/*
- * This is your SECURE backend function.
- * This file lives in a folder named 'netlify/functions/'
- * This code runs on a server, not in the user's browser.
- * The API key is 100% hidden here.
- */
-
-// We must use 'node-fetch' in a Netlify function
-import fetch from 'node-fetch';
+// **THIS LINE IS UPDATED!** We are now using require()
+const fetch = require('node-fetch');
 
 // This is the main "handler" function that Netlify will run
-export async function handler(event, context) {
+exports.handler = async function(event, context) {
   
   // 1. Get the user's query from the frontend
   let userQuery;
@@ -84,7 +77,8 @@ export async function handler(event, context) {
       const recommendationText = candidate.content.parts[0].text;
       
       let products = [];
-      const metadata = candidate.groundingMetadata;
+      // **THIS LINE IS FIXED!** (Was candidate.groundInfo)
+      const metadata = candidate.groundingMetadata; 
       if (metadata && metadata.groundingAttributions) {
         products = metadata.groundingAttributions
           .map(attr => ({
@@ -109,6 +103,17 @@ export async function handler(event, context) {
            body: JSON.stringify({ message: "The request was blocked for safety reasons. Please adjust your query."}) 
          };
        }
+       
+       // Handle missing metadata
+       if (candidate && candidate.content?.parts?.[0]?.text) {
+           const recommendationText = candidate.content.parts[0].text;
+           // No products found, but return the text
+           return {
+                statusCode: 200,
+                body: JSON.stringify({ recommendationText, products: [] })
+           };
+       }
+       
        throw new Error("Invalid response from AI service.");
     }
 
